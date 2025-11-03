@@ -1,0 +1,11 @@
+task: mmlu
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: brier_score
+    aggregation: brier_score
+    higher_is_better: false
+  - metric: auroc
+    aggregation: auroc
+    higher_is_better: true

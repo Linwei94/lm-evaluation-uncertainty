@@ -6,6 +6,7 @@ import re
 import string
 from collections.abc import Iterable
 from typing import Callable, List, Optional, Sequence, TypeVar
+from sklearn.metrics import roc_auc_score
 
 import numpy as np
 import sacrebleu
@@ -148,6 +149,62 @@ def brier_score(items):  # This is a passthrough function
 def brier_score_fn(items):  # This is a passthrough function
     return items
 
+@register_aggregation("auroc")
+def auroc_aggregation(items):
+    # items: list of (gold_index:int, prob_vector:np.ndarray)
+    gold, probs = list(zip(*items))
+    probs = np.array(probs)
+    n_classes = probs.shape[1]
+    y_true = np.zeros((len(gold), n_classes), dtype=int)
+    y_true[np.arange(len(gold)), np.array(gold)] = 1
+    if n_classes == 2:
+        return float(roc_auc_score(y_true[:, 1], probs[:, 1]))
+    else:
+        return float(roc_auc_score(y_true, probs, multi_class="ovr", average="macro"))
+
+@register_metric(
+    metric="auroc",
+    higher_is_better=True,
+    output_type=["multiple_choice"],
+    aggregation="auroc",
+)
+def auroc_metric(items):
+    return items
+
+
+@register_aggregation("ece")
+def ece_aggregation(items, num_bins: int = 15) -> float:
+    """Expected Calibration Error for multiple-choice probabilities."""
+    gold, probs = list(zip(*items))
+    probs = np.array(probs)
+    gold = np.array(gold)
+    confidences = probs.max(axis=1)
+    predictions = probs.argmax(axis=1)
+    accuracies = (predictions == gold).astype(float)
+
+    bin_ids = np.floor(confidences * num_bins).astype(int)
+    bin_ids = np.clip(bin_ids, 0, num_bins - 1)
+
+    ece = 0.0
+    for b in range(num_bins):
+        mask = bin_ids == b
+        if not np.any(mask):
+            continue
+        bin_conf = confidences[mask].mean()
+        bin_acc = accuracies[mask].mean()
+        weight = mask.mean()
+        ece += weight * abs(bin_acc - bin_conf)
+    return float(ece)
+
+
+@register_metric(
+    metric="ece",
+    higher_is_better=False,
+    output_type=["multiple_choice"],
+    aggregation="ece",
+)
+def ece_metric(items):
+    return items
 
 @register_metric(
     metric="acc",

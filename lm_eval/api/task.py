@@ -1654,6 +1654,16 @@ class ConfigurableTask(Task):
                     if "brier_score" in use_metric
                     else {}
                 ),
+                **(
+                    {"auroc": (gold, prob_norm)}
+                    if "auroc" in use_metric
+                    else {}
+                ),
+                **(
+                    {"ece": (gold, prob_norm)}
+                    if "ece" in use_metric
+                    else {}
+                ),
             }
 
             if "acc_mutual_info" in use_metric:

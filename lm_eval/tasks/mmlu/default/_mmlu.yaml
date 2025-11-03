@@ -6,6 +6,10 @@ task:
   - mmlu_humanities
 aggregate_metric_list:
   - metric: acc
-    weight_by_size: True
+    aggregation: mean
+  - metric: ece
+    aggregation: mean
+  - metric: auroc
+    aggregation: mean
 metadata:
   version: 2
