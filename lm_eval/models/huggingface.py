@@ -65,7 +65,7 @@ class HFLM(TemplateLM):
     def __init__(
         self,
         pretrained: str | transformers.PreTrainedModel,
-        backend: Literal["default", "causal", "seq2seq"] = "default",
+        backend: Literal["default", "causal", "seq2seq", "diffusion"] = "default",
         # override whether the model should be treated as decoder-only (causal) or encoder-decoder (seq2seq)
         revision: str | None = "main",
         subfolder: str = "",
@@ -498,7 +498,7 @@ class HFLM(TemplateLM):
     def _get_backend(
         self,
         config: transformers.PretrainedConfig | transformers.AutoConfig,
-        backend: Literal["default", "causal", "seq2seq"] = "default",
+        backend: Literal["default", "causal", "seq2seq", "diffusion"] = "default",
         trust_remote_code: bool | None = False,
     ) -> None:
         """Helper method during initialization.
@@ -510,7 +510,7 @@ class HFLM(TemplateLM):
         user must set `self.backend` to be either "causal" or "seq2seq" manually!**
         """
 
-        assert backend in ["default", "causal", "seq2seq"]
+        assert backend in ["default", "causal", "seq2seq", "diffusion"]
 
         if backend != "default":
             # if we've settled on non-default backend, use that manually
@@ -535,6 +535,11 @@ class HFLM(TemplateLM):
             ):
                 self.backend = "causal"
                 eval_logger.debug(f"Using model type '{self.backend}'")
+            elif (
+                getattr(config, "model_type", None) in MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+            ):
+                self.backend = "causal"
+                eval_logger.debug(f"Using model type '{self.backend}'")
             else:
                 if not trust_remote_code:
                     eval_logger.warning(
@@ -544,7 +549,7 @@ class HFLM(TemplateLM):
                     )
                 # if model type is neither in HF transformers causal or seq2seq model registries
                 # then we default to assuming AutoModelForCausalLM
-                self.backend = "causal"
+                self.backend = "diffusion"
                 eval_logger.info(
                     f"Model type cannot be determined. Using default model type '{self.backend}'"
                 )
@@ -554,6 +559,8 @@ class HFLM(TemplateLM):
                 self.AUTO_MODEL_CLASS = transformers.AutoModelForCausalLM
             elif self.backend == "seq2seq":
                 self.AUTO_MODEL_CLASS = transformers.AutoModelForSeq2SeqLM
+            elif self.backend == "diffusion":
+                self.AUTO_MODEL_CLASS = transformers.AutoModel
 
     def _get_config(
         self,
@@ -963,6 +970,7 @@ class HFLM(TemplateLM):
             assert self.AUTO_MODEL_CLASS in (
                 transformers.AutoModelForCausalLM,
                 transformers.AutoModelForVision2Seq,
+                transformers.AutoModel,
             )
             return self.model(inps).logits
 

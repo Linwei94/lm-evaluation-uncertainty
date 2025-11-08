@@ -1,0 +1,78 @@
+group: mmlu_vnc
+group_alias: mmlu (vnc)
+task:
+  - group: stem
+    task:
+      - mmlu_stem_generative_vnc
+    aggregate_metric_list:
+      - metric: exact_match_with_prob_tuple
+        weight_by_size: true
+        filter_list: get_response_and_vnc
+      - metric: ece_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+      - metric: auroc_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+  - group: other
+    task:
+      - mmlu_other_generative_vnc
+    aggregate_metric_list:
+      - metric: exact_match_with_prob_tuple
+        weight_by_size: true
+        filter_list: get_response_and_vnc
+      - metric: ece_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+      - metric: auroc_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+  - group: social sciences
+    task:
+      - mmlu_social_sciences_generative_vnc
+    aggregate_metric_list:
+      - metric: exact_match_with_prob_tuple
+        weight_by_size: true
+        filter_list: get_response_and_vnc
+      - metric: ece_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+      - metric: auroc_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+  - group: humanities
+    task:
+      - mmlu_humanities_generative_vnc
+    aggregate_metric_list:
+      - metric: exact_match_with_prob_tuple
+        weight_by_size: true
+        filter_list: get_response_and_vnc
+      - metric: ece_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+      - metric: auroc_single_prob
+        weight_by_size: true
+        aggregation: mean
+        filter_list: get_response_and_vnc
+
+aggregate_metric_list:
+  - aggregation: mean
+    metric: exact_match_with_prob_tuple
+    weight_by_size: true
+    filter_list: get_response_and_vnc
+  - metric: ece_single_prob
+    aggregation: mean
+    filter_list: get_response_and_vnc
+  - metric: auroc_single_prob
+    aggregation: mean
+    filter_list: get_response_and_vnc
+
+metadata:
+  version: 3

@@ -206,6 +206,124 @@ def ece_aggregation(items, num_bins: int = 15) -> float:
 def ece_metric(items):
     return items
 
+@register_aggregation("ece_single_prob")
+def ece_single_prob_aggregation(items, num_bins: int = 15) -> float:
+    """
+    Expected Calibration Error for single-label predictions 
+    with scalar confidence (e.g. [('C', 95.0)]).
+    Handles NaNs robustly.
+    """
+    import numpy as np
+
+    golds, preds, confs = [], [], []
+
+    for gold, [(predicted, confidence)] in items:
+        try:
+            conf = float(confidence) / 100.0  # convert 0–100 → 0–1
+        except (TypeError, ValueError):
+            conf = np.nan
+        golds.append(gold)
+        preds.append(predicted)
+        confs.append(conf)
+
+    golds = np.array(golds)
+    preds = np.array(preds)
+    confs = np.array(confs, dtype=float)
+
+    # Filter out NaN confidences
+    valid_mask = ~np.isnan(confs)
+    golds = golds[valid_mask]
+    preds = preds[valid_mask]
+    confs = confs[valid_mask]
+
+    if len(confs) == 0:
+        return float("nan")  # nothing valid to compute on
+
+    accuracies = (preds == golds).astype(float)
+
+    # Bin confidences into equal-width bins [0, 1)
+    bin_ids = np.floor(confs * num_bins).astype(int)
+    bin_ids = np.clip(bin_ids, 0, num_bins - 1)
+
+    # Compute ECE
+    ece = 0.0
+    for b in range(num_bins):
+        mask = bin_ids == b
+        if not np.any(mask):
+            continue
+        bin_conf = np.nanmean(confs[mask])
+        bin_acc = np.nanmean(accuracies[mask])
+        weight = mask.mean()
+        ece += weight * abs(bin_acc - bin_conf)
+
+    return float(ece)
+
+
+
+@register_metric(
+    metric="ece_single_prob",
+    higher_is_better=False,
+    output_type=["generative"],
+    aggregation="ece_single_prob",
+)
+def ece_single_prob_metric(items):
+    return items
+
+
+@register_aggregation("auroc_single_prob")
+def auroc_single_prob_aggregation(items) -> float:
+    """
+    Computes AUROC treating confidence as a score for correctness.
+    Each item is (gold, [('label', confidence)]).
+    """
+
+    y_true = []
+    y_score = []
+
+    for gold, result in items:
+        # skip invalid result structure
+        if not result or not isinstance(result, list) or not isinstance(result[0], tuple):
+            continue
+
+        predicted, confidence = result[0]
+        try:
+            conf = float(confidence) / 100.0
+        except (TypeError, ValueError):
+            continue  # skip malformed confidence
+
+        if np.isnan(conf):
+            continue
+
+        correct = float(predicted == gold)
+        y_true.append(correct)
+        y_score.append(conf)
+
+    y_true = np.array(y_true)
+    y_score = np.array(y_score)
+
+    # If no valid items or all belong to same class, AUROC is undefined
+    if len(y_true) == 0 or len(np.unique(y_true)) < 2:
+        return float("nan")
+
+    try:
+        auroc = roc_auc_score(y_true, y_score)
+    except ValueError:
+        auroc = float("nan")
+
+    return float(auroc)
+    
+
+
+@register_metric(
+    metric="auroc_single_prob",
+    higher_is_better=False,
+    output_type=["generative"],
+    aggregation="auroc_single_prob",
+)
+def auroc_single_prob_metric(items):
+    return items
+
+
 @register_metric(
     metric="acc",
     higher_is_better=True,
@@ -310,6 +428,41 @@ def exact_match_hf_evaluate(
 )
 def exact_match_fn(**kwargs):
     return exact_match_hf_evaluate(**kwargs)
+
+
+@register_metric(
+    metric="exact_match_with_prob_tuple",
+    higher_is_better=True,
+    output_type="generate_until",
+    aggregation="mean",
+)
+def exact_match_with_prob_tuple_fn(items, **kwargs):
+    """
+    Extracts predictions from (prediction, confidence) tuples and compares them with references
+    using exact_match_hf_evaluate.
+    
+    Args:
+        items: List of (gold, [(prediction, confidence)]) tuples
+        **kwargs: Additional arguments passed to exact_match_hf_evaluate
+    """
+    # Unpack predictions from tuples, keeping only the first prediction if multiple exist
+    predictions = []
+    references = []
+    print(items)
+    gold, pred_tuples = items
+    if pred_tuples and isinstance(pred_tuples[0], tuple):
+        pred = pred_tuples[0][0]  # Take first prediction's letter
+    else:
+        pred = "[invalid]"
+    predictions.append(pred.upper().strip())
+    references.append(gold.upper().strip())
+    
+    temp = exact_match_hf_evaluate(
+        predictions=predictions,
+        references=references,
+        **kwargs
+    )
+    return {"exact_match_with_prob_tuple": temp["exact_match"]}
 
 
 @register_metric(

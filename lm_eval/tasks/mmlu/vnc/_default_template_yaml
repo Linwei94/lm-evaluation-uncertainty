@@ -1,0 +1,47 @@
+dataset_path: cais/mmlu
+test_split: test
+fewshot_split: dev
+fewshot_config:
+  sampler: first_n
+output_type: generate_until
+doc_to_text: "Read the question, provide your answer and your confidence in this answer. Note: The confidence indicates how likely you think your answer is true. 
+              Use the following format to answer: Answer and Confidence (0-100): [ONLY the option letter; not a complete sentence], [Your confidence level, please only include the numerical number in the range of 0-100]%
+              Only the answer and confidence, don't give me the explanation.
+              Question: {{question.strip()}}\nA. {{choices[0]}}\nB. {{choices[1]}}\nC. {{choices[2]}}\nD. {{choices[3]}}\n
+              Now, please answer this question and provide your confidence level."
+doc_to_target: "{{['A', 'B', 'C', 'D'][answer]}}"
+# process_results: !function utils.process_vnc
+generation_kwargs:
+  until:
+    - "</s>"
+    - "\n"
+metric_list:
+  - metric: exact_match_with_prob_tuple
+    aggregation: mean
+    higher_is_better: true
+    ignore_punctuation: true
+    ignore_case: true
+  - metric: ece_single_prob
+    aggregation: ece_single_prob
+    higher_is_better: false
+  - metric: auroc_single_prob
+    aggregation: auroc_single_prob
+    higher_is_better: true
+filter_list:
+  - name: get_response_and_vnc
+    filter:
+      # Filter everything after the first break line
+      - function: "regex"
+        regex_pattern: "^(.*?)(?=\\n|$)"
+      # Remove leading white spaces
+      - function: remove_whitespace
+      # function to ignore right white spaces or line breaks
+      - function: "regex"
+        regex_pattern: "^(.*?)\\s*$"
+      # function to ignore "Answer and Confidence (0-100):"
+      - function: "regex"
+        regex_pattern: "(?:Answer and Confidence \\(0-100\\):\\s*)?(.+)$"
+      - function: take_first
+      - function: "multi_choice_vnc_regex"
+metadata:
+  version: 3.0
